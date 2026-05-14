@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login — Cookies Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #f0f2f5;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── PANTALLA LOGIN ── */
+  .login-box {
+    background: #fff;
+    border-radius: 16px;
+    padding: 2.5rem 2rem;
+    width: 360px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  }
+
+  .login-logo {
+    width: 52px;
+    height: 52px;
+    background: #1a56db;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .login-logo svg { width: 26px; height: 26px; fill: #fff; }
+
+  .login-box h1 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: #111;
+    margin-bottom: 4px;
+  }
+
+  .login-box p {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin-bottom: 1.75rem;
+  }
+
+  label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 5px;
+  }
+
+  input[type=text], input[type=password] {
+    width: 100%;
+    padding: 10px 13px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-family: 'Inter', sans-serif;
+    color: #111;
+    background: #fafafa;
+    outline: none;
+    transition: border-color .2s, background .2s;
+    margin-bottom: 14px;
+  }
+
+  input:focus {
+    border-color: #1a56db;
+    background: #fff;
+  }
+
+  .btn-login {
+    width: 100%;
+    padding: 11px;
+    background: #1a56db;
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background .2s, transform .1s;
+    margin-top: 4px;
+  }
+
+  .btn-login:hover { background: #1648c0; }
+  .btn-login:active { transform: scale(0.98); }
+  .btn-login:disabled { background: #93aee8; cursor: not-allowed; }
+
+  .error-msg {
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    color: #dc2626;
+    font-size: 0.8rem;
+    padding: 9px 12px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    display: none;
+  }
+
+  .error-msg.visible { display: block; }
+
+  .hint-text {
+    text-align: center;
+    font-size: 0.75rem;
+    color: #9ca3af;
+    margin-top: 1.25rem;
+  }
+
+  /* ── PANTALLA DASHBOARD ── */
+  .dashboard {
+    background: #fff;
+    border-radius: 16px;
+    width: 420px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    display: none;
+  }
+
+  .dash-header {
+    background: #1a56db;
+    padding: 1.5rem 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .dash-header-left { display: flex; align-items: center; gap: 12px; }
+
+  .avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+  }
+
+  .dash-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+  }
+
+  .dash-sub {
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.7);
+    margin-top: 1px;
+  }
+
+  .btn-logout {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.78rem;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background .2s;
+  }
+
+  .btn-logout:hover { background: rgba(255,255,255,0.25); }
+
+  .dash-body { padding: 1.75rem; }
+
+  .welcome-msg {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #111;
+    margin-bottom: 4px;
+  }
+
+  .welcome-sub {
+    font-size: 0.83rem;
+    color: #6b7280;
+    margin-bottom: 1.5rem;
+  }
+
+  .info-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: #f8faff;
+    border: 1px solid #e0eaff;
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+
+  .info-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: #e0eaff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .info-icon svg { width: 16px; height: 16px; stroke: #1a56db; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  .info-label { font-size: 0.72rem; color: #6b7280; margin-bottom: 1px; }
+  .info-val { font-size: 0.85rem; font-weight: 500; color: #111; word-break: break-all; }
+
+  .cookie-badge {
+    display: inline-block;
+    background: #ecfdf5;
+    border: 1px solid #6ee7b7;
+    color: #065f46;
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 99px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  /* Animación entrada */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .login-box, .dashboard { animation: fadeUp .35s ease; }
+</style>
+</head>
+<body>
+
+<!-- ── PANTALLA DE LOGIN ── -->
+<div class="login-box" id="screen-login">
+  <div class="login-logo">
+    <svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 1 1 0 10A5 5 0 0 1 12 2zm0 12c5.33 0 8 2.67 8 4v2H4v-2c0-1.33 2.67-4 8-4z"/></svg>
+  </div>
+  <h1>Iniciar sesión</h1>
+  <p>Ingresa tus credenciales para continuar</p>
+
+  <div class="error-msg" id="error-msg">Usuario o contraseña incorrectos.</div>
+
+  <label for="inp-user">Usuario</label>
+  <input type="text" id="inp-user" placeholder="admin" autocomplete="off">
+
+  <label for="inp-pass">Contraseña</label>
+  <input type="password" id="inp-pass" placeholder="••••">
+
+  <button class="btn-login" id="btn-login" onclick="doLogin()">Ingresar</button>
+
+  <p class="hint-text">Prueba: <strong>admin</strong> / <strong>1234</strong></p>
+</div>
+
+<!-- ── PANTALLA DASHBOARD ── -->
+<div class="dashboard" id="screen-dashboard">
+  <div class="dash-header">
+    <div class="dash-header-left">
+      <div class="avatar" id="dash-avatar">A</div>
+      <div>
+        <div class="dash-name" id="dash-name">admin</div>
+        <div class="dash-sub">Sesión activa</div>
+      </div>
+    </div>
+    <button class="btn-logout" onclick="doLogout()">Cerrar sesión</button>
+  </div>
+
+  <div class="dash-body">
+    <div class="welcome-msg" id="dash-welcome">¡Bienvenido, admin!</div>
+    <div class="welcome-sub">Has iniciado sesión correctamente.</div>
+
+    <div class="info-row">
+      <div class="info-icon">
+        <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <div>
+        <div class="info-label">Cookie de sesión <span class="cookie-badge">HttpOnly</span></div>
+        <div class="info-val" id="dash-session-id">—</div>
+      </div>
+    </div>
+
+    <div class="info-row">
+      <div class="info-icon">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div>
+        <div class="info-label">Expira en</div>
+        <div class="info-val" id="dash-expira">30 minutos</div>
+      </div>
+    </div>
+
+    <div class="info-row">
+      <div class="info-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div>
+        <div class="info-label">Servidor</div>
+        <div class="info-val">localhost:8080</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE = 'http://localhost:8080';
+let sessionId = null;
+let timer = null;
+let segundos = 1800;
+
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+function hideError() {
+  document.getElementById('error-msg').classList.remove('visible');
+}
+
+function showDashboard(user, sid) {
+  document.getElementById('screen-login').style.display = 'none';
+  const dash = document.getElementById('screen-dashboard');
+  dash.style.display = 'block';
+
+  const inicial = user.charAt(0).toUpperCase();
+  document.getElementById('dash-avatar').textContent = inicial;
+  document.getElementById('dash-name').textContent = user;
+  document.getElementById('dash-welcome').textContent = '¡Bienvenido, ' + user + '!';
+  document.getElementById('dash-session-id').textContent = sid;
+
+  segundos = 1800;
+  clearInterval(timer);
+  timer = setInterval(() => {
+    segundos--;
+    const m = Math.floor(segundos / 60);
+    const s = segundos % 60;
+    document.getElementById('dash-expira').textContent =
+      m + ' min ' + String(s).padStart(2,'0') + ' seg';
+    if (segundos <= 0) {
+      clearInterval(timer);
+      showLogin();
+    }
+  }, 1000);
+}
+
+function showLogin() {
+  clearInterval(timer);
+  document.getElementById('screen-dashboard').style.display = 'none';
+  const login = document.getElementById('screen-login');
+  login.style.display = 'block';
+  document.getElementById('inp-pass').value = '';
+  hideError();
+}
+
+async function doLogin() {
+  const user = document.getElementById('inp-user').value.trim();
+  const pass = document.getElementById('inp-pass').value.trim();
+  hideError();
+
+  if (!user || !pass) { showError('Completa todos los campos.'); return; }
+
+  const btn = document.getElementById('btn-login');
+  btn.disabled = true;
+  btn.textContent = 'Verificando...';
+
+  try {
+    const r = await fetch(BASE + '/sesion/login?usuario=' + encodeURIComponent(user) + '&password=' + encodeURIComponent(pass), {
+      method: 'POST',
+      credentials: 'include'
+    });
+    const d = await r.json();
+
+    if (d.estado === 'OK') {
+      sessionId = d.sessionId;
+      showDashboard(user, sessionId);
+    } else {
+      showError('Usuario o contraseña incorrectos.');
+    }
+  } catch (e) {
+    showError('No se pudo conectar al servidor. ¿Está corriendo Spring Boot?');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Ingresar';
+}
+
+async function doLogout() {
+  try {
+    await fetch(BASE + '/sesion/logout', { method: 'POST', credentials: 'include' });
+  } catch(e) {}
+  sessionId = null;
+  showLogin();
+}
+
+document.getElementById('inp-pass').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+</script>
+</body>
+</html>
