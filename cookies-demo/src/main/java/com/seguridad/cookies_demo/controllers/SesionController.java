@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,54 +13,52 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.seguridad.cookies_demo.util.JwtUtil;
+
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 @RestController
 @RequestMapping("/sesion")
-@CrossOrigin(origins = "http://127.0.0.1:5500", allowCredentials = "true")
+@CrossOrigin(origins = "*")
 public class SesionController {
 
-    // "Base de datos" en memoria para sesiones activas
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    // Sesiones activas: sessionId -> usuario
     private final Map<String, String> sesionesActivas = new HashMap<>();
 
-    // ----------------------------------------------------------------
-    // POST /sesion/login
-    // Recibe usuario y contraseña, crea una cookie de sesión
-    // ----------------------------------------------------------------
+    // ── LOGIN: genera cookie de sesión + JWT ─────────────────────────
     @PostMapping("/login")
-    public Map<String, String> login(
+    public Map<String, Object> login(
             @RequestParam String usuario,
             @RequestParam String password,
             HttpServletResponse response) {
 
-        Map<String, String> resultado = new HashMap<>();
+        Map<String, Object> resultado = new HashMap<>();
 
-        // Validación simple (en producción usarías BD + contraseña hasheada)
         if ("admin".equals(usuario) && "1234".equals(password)) {
 
-            // 1. Generar un ID de sesión único e impredecible
+            // 1. Cookie de sesión (como antes)
             String sessionId = UUID.randomUUID().toString();
-
-            // 2. Guardar en "servidor" quién es ese sessionId
             sesionesActivas.put(sessionId, usuario);
 
-            // 3. Crear la cookie
             Cookie cookie = new Cookie("SESSION_ID", sessionId);
-
-            // --- Atributos de seguridad ---
-            cookie.setHttpOnly(true);   // No accesible desde JavaScript → protege XSS
-            cookie.setSecure(false);    // En producción poner TRUE (solo HTTPS)
-            cookie.setPath("/");        // Disponible en toda la app
-            cookie.setMaxAge(60 * 30); // Expira en 30 minutos (segundos)
-
-            // 4. Enviar la cookie al navegador en la respuesta HTTP
+            cookie.setHttpOnly(true);
+            cookie.setSecure(false);
+            cookie.setPath("/");
+            cookie.setMaxAge(60 * 30);
             response.addCookie(cookie);
+
+            // 2. JWT (nuevo)
+            String jwt = jwtUtil.generarToken(usuario);
 
             resultado.put("estado", "OK");
             resultado.put("mensaje", "Sesión iniciada para: " + usuario);
-            resultado.put("sessionId", sessionId); // Solo para demostración
+            resultado.put("sessionId", sessionId);
+            resultado.put("token", jwt);
 
         } else {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -70,65 +69,68 @@ public class SesionController {
         return resultado;
     }
 
-    // ----------------------------------------------------------------
-    // GET /sesion/perfil
-    // Lee la cookie de sesión y devuelve info del usuario autenticado
-    // ----------------------------------------------------------------
+    // ── PERFIL: valida cookie Y JWT ──────────────────────────────────
     @GetMapping("/perfil")
-    public Map<String, String> perfil(HttpServletRequest request,
-                                      HttpServletResponse response) {
+    public Map<String, Object> perfil(
+            HttpServletRequest request,
+            HttpServletResponse response) {
 
-        Map<String, String> resultado = new HashMap<>();
+        Map<String, Object> resultado = new HashMap<>();
 
-        // 1. Leer todas las cookies que envió el navegador
+        // Validar cookie de sesión
         Cookie[] cookies = request.getCookies();
+        String sessionId = null;
 
-        if (cookies == null) {
+        if (cookies != null) {
+            sessionId = Arrays.stream(cookies)
+                    .filter(c -> "SESSION_ID".equals(c.getName()))
+                    .map(Cookie::getValue)
+                    .findFirst().orElse(null);
+        }
+
+        if (sessionId == null || !sesionesActivas.containsKey(sessionId)) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             resultado.put("estado", "ERROR");
-            resultado.put("mensaje", "No hay cookies. Inicia sesión primero.");
+            resultado.put("mensaje", "Cookie de sesión inválida o ausente");
             return resultado;
         }
 
-        // 2. Buscar nuestra cookie específica
-        String sessionId = Arrays.stream(cookies)
-                .filter(c -> "SESSION_ID".equals(c.getName()))
-                .map(Cookie::getValue)
-                .findFirst()
-                .orElse(null);
+        // Validar JWT del header Authorization
+        String authHeader = request.getHeader("Authorization");
 
-        if (sessionId == null) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             resultado.put("estado", "ERROR");
-            resultado.put("mensaje", "Cookie SESSION_ID no encontrada.");
+            resultado.put("mensaje", "JWT ausente. Envía: Authorization: Bearer <token>");
             return resultado;
         }
 
-        // 3. Verificar si el sessionId existe en el servidor
-        String usuario = sesionesActivas.get(sessionId);
+        String jwt = authHeader.substring(7);
 
-        if (usuario == null) {
+        if (!jwtUtil.validarToken(jwt)) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             resultado.put("estado", "ERROR");
-            resultado.put("mensaje", "Sesión inválida o expirada.");
+            resultado.put("mensaje", "JWT inválido o expirado");
             return resultado;
         }
 
-        // 4. Sesión válida → devolver datos
+        // Ambos válidos
+        String usuarioCookie = sesionesActivas.get(sessionId);
+        String usuarioJwt    = jwtUtil.extraerUsuario(jwt);
+
         resultado.put("estado", "OK");
-        resultado.put("usuario", usuario);
-        resultado.put("mensaje", "Bienvenido, " + usuario + "! Tu sesión es válida.");
+        resultado.put("usuario", usuarioCookie);
+        resultado.put("usuarioEnJwt", usuarioJwt);
+        resultado.put("mensaje", "Acceso concedido con cookie + JWT ✓");
 
         return resultado;
     }
 
-    // ----------------------------------------------------------------
-    // POST /sesion/logout
-    // Invalida la cookie de sesión
-    // ----------------------------------------------------------------
+    // ── LOGOUT ───────────────────────────────────────────────────────
     @PostMapping("/logout")
-    public Map<String, String> logout(HttpServletRequest request,
-                                      HttpServletResponse response) {
+    public Map<String, String> logout(
+            HttpServletRequest request,
+            HttpServletResponse response) {
 
         Map<String, String> resultado = new HashMap<>();
         Cookie[] cookies = request.getCookies();
@@ -136,19 +138,16 @@ public class SesionController {
         if (cookies != null) {
             for (Cookie cookie : cookies) {
                 if ("SESSION_ID".equals(cookie.getName())) {
-
-                    // Eliminar del "servidor"
                     sesionesActivas.remove(cookie.getValue());
 
-                    // Invalidar la cookie en el navegador (MaxAge = 0)
-                    Cookie cookieVacia = new Cookie("SESSION_ID", "");
-                    cookieVacia.setHttpOnly(true);
-                    cookieVacia.setPath("/");
-                    cookieVacia.setMaxAge(0); // ← esto elimina la cookie del navegador
-                    response.addCookie(cookieVacia);
+                    Cookie vacia = new Cookie("SESSION_ID", "");
+                    vacia.setHttpOnly(true);
+                    vacia.setPath("/");
+                    vacia.setMaxAge(0);
+                    response.addCookie(vacia);
 
                     resultado.put("estado", "OK");
-                    resultado.put("mensaje", "Sesión cerrada correctamente.");
+                    resultado.put("mensaje", "Sesión cerrada. Descarta el JWT en el cliente.");
                     return resultado;
                 }
             }
@@ -159,26 +158,27 @@ public class SesionController {
         return resultado;
     }
 
-    // ----------------------------------------------------------------
-    // GET /sesion/todas-las-cookies
-    // Muestra TODAS las cookies (útil para depuración)
-    // ----------------------------------------------------------------
-    @GetMapping("/todas-las-cookies")
-    public Map<String, Object> todasLasCookies(HttpServletRequest request) {
-
+    // ── VALIDAR JWT (endpoint de prueba) ─────────────────────────────
+    @GetMapping("/validar-jwt")
+    public Map<String, Object> validarJwt(HttpServletRequest request) {
         Map<String, Object> resultado = new HashMap<>();
-        Cookie[] cookies = request.getCookies();
+        String authHeader = request.getHeader("Authorization");
 
-        if (cookies == null) {
-            resultado.put("total", 0);
-            resultado.put("mensaje", "No se encontraron cookies.");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            resultado.put("estado", "ERROR");
+            resultado.put("mensaje", "Envía: Authorization: Bearer <token>");
+            return resultado;
+        }
+
+        String jwt = authHeader.substring(7);
+
+        if (jwtUtil.validarToken(jwt)) {
+            resultado.put("estado", "OK");
+            resultado.put("usuario", jwtUtil.extraerUsuario(jwt));
+            resultado.put("mensaje", "JWT válido ✓");
         } else {
-            Map<String, String> mapa = new HashMap<>();
-            for (Cookie c : cookies) {
-                mapa.put(c.getName(), c.getValue());
-            }
-            resultado.put("total", cookies.length);
-            resultado.put("cookies", mapa);
+            resultado.put("estado", "ERROR");
+            resultado.put("mensaje", "JWT inválido o expirado");
         }
 
         return resultado;
